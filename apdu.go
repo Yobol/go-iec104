@@ -1,6 +1,13 @@
 package iec104
 
-import "fmt"
+import (
+	"fmt"
+)
+
+const (
+	ApduHeaderLen = 4 // non-include startByte and apduLen
+	AsduHeaderLen = 6
+)
 
 /*
 APDU (Application Protocol Data Unit).
@@ -31,22 +38,37 @@ APDU contains an APCI or an APCI with ASDU.
 
 */
 type APDU struct {
-	APCI *APCI
-	ASDU *ASDU
+	*APCI
+	*ASDU
+
+	frame Frame
 }
 
 func (apdu *APDU) Parse(data []byte) error {
-	if len(data) < 4 {
+	if len(data) < ApduHeaderLen {
 		return fmt.Errorf("invalid apdu body: % X", data)
 	}
 
-	apci := &APCI{
-		ApduLen: uint8(len(data)),
-		Cf1:     data[0],
-		Cf2:     data[1],
-		Cf3:     data[2],
-		Cf4:     data[3],
+	// Parse APCI.
+	apci := new(APCI)
+	frame, err := apci.Parse(data[:ApduHeaderLen])
+	if err != nil {
+		return err
 	}
 	apdu.APCI = apci
+	apdu.frame = frame
+
+	switch frame.Type() {
+	case FrameTypeS, FrameTypeU: // S-format or U-format frame doesn't have ASDU.
+		return nil
+	}
+
+	// Parse ASDU.
+	asdu := new(ASDU)
+	if err = asdu.Parse(data[ApduHeaderLen:]); err != nil {
+		return err
+	}
+	apdu.ASDU = asdu
+
 	return nil
 }
