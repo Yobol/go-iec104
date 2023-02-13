@@ -92,8 +92,12 @@ func (i *InformationObject) parseCP56Time(data []byte) int64 {
 
 func (asdu *ASDU) parseInformationObjects(asduBody []byte) {
 	ios := make([]*InformationObject, 0)
-
 	signals := make([]*InformationElement, 0)
+	defer func() {
+		asdu.ios = ios
+		asdu.Signals = signals
+	}()
+
 	if asdu.sq {
 		io := &InformationObject{}
 		io.parseIOA(asduBody[:IOALength])
@@ -124,10 +128,9 @@ func (asdu *ASDU) parseInformationObjects(asduBody []byte) {
 
 				signals = append(signals, ie)
 			}
+			ios = append(ios, io)
 		}
 	}
-	asdu.Signals = signals
-	asdu.ios = ios
 }
 
 const (

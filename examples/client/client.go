@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	serverAddress = "172.16.251.22:2404"
+	serverAddress = "172.16.251.22:6666"
 	timeout       = 10 * time.Second
 )
 
@@ -29,14 +29,19 @@ func main() {
 	defer client.Close()
 
 	go func() {
-		time.Sleep(1 * time.Second)
+		time.Sleep(5 * time.Second)
 		client.SendTestFrame()
 	}()
 
 	go func() {
-		time.Sleep(2 * time.Second)
+		time.Sleep(1 * time.Second)
 		client.SendGeneralInterrogation()
 	}()
 
-	time.Sleep(30 * time.Second)
+	go func() {
+		time.Sleep(2 * time.Second)
+		client.SendCounterInterrogation()
+	}()
+
+	time.Sleep(30 * time.Minute)
 }
