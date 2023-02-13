@@ -166,7 +166,7 @@ func (c *Client) handlingData(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case aspu := <-c.dataChan:
-			_lg.Debugf("handle data: TypeID: %d, COT: %d", aspu.ASDU.typeID, aspu.ASDU.cot)
+			_lg.Debugf("handle data: TypeID: %X, COT: %X", aspu.ASDU.typeID, aspu.ASDU.cot)
 			go c.dataHandler(aspu)
 		}
 	}
@@ -212,16 +212,14 @@ func (c *Client) readApduBody(apduLen uint8) (*APDU, error) {
 
 	switch apdu.frame.Type() {
 	case FrameTypeI:
-		c.incRsn()
-		switch apdu.ASDU.typeID {
-		case CIcNa1:
-			switch apdu.ASDU.cot {
-			case CotActTerm:
-				c.SendTestFrame()
-			}
-		default:
+		if apdu.ASDU.toBeHandled {
 			c.dataChan <- apdu
 		}
+		if apdu.ASDU.sendSFrame {
+			c.SendTestFrame()
+		}
+
+		c.incRsn()
 	}
 
 	return apdu, nil
@@ -258,10 +256,29 @@ func (c *Client) SendGeneralInterrogation() {
 		sq:     false,
 		nObjs:  NOO(len(ios)),
 		t:      false,
-		pn:     false,
 		cot:    CotAct,
-		org:    c.org,
-		coa:    c.coa,
+		ios:    ios,
+	})
+}
+
+func (c *Client) SendCounterInterrogation() {
+	ios := []*InformationObject{
+		{
+			ioa: 0x000000,
+			ies: []*InformationElement{
+				{
+					Format: []InformationElementType{QCC},
+					Raw:    []byte{0x45},
+				},
+			},
+		},
+	}
+	c.SendIFrame(&ASDU{
+		typeID: CCiNa1,
+		sq:     false,
+		nObjs:  NOO(len(ios)),
+		t:      false,
+		cot:    CotAct,
 		ios:    ios,
 	})
 }
@@ -271,6 +288,8 @@ func (c *Client) SendIFrame(asdu *ASDU) {
 		SendSN: c.ssn,
 		RecvSN: c.rsn,
 	}
+	asdu.org = c.org
+	asdu.coa = c.coa
 	c.sendIFrame(apci, asdu)
 }
 

@@ -35,8 +35,8 @@ of the pair. See the following table for decoding the status of binary inputs ac
 |                             | DI1         | DI2          |
 | 0 (Intermediate state)      | OFF (Open)  | OFF (Open)   |
 | 1 (OFF)                     | ON (Closed) | OFF (Open)   |
-| 1 (ON)                      | OFF (Open)  | ON (Closed)  |
-| 1 (Intermediate state)      | ON (Closed) | ON (Closed)  |
+| 2 (ON)                      | OFF (Open)  | ON (Closed)  |
+| 3 (Intermediate state)      | ON (Closed) | ON (Closed)  |
 
 #### Normalized Values
 

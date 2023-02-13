@@ -41,7 +41,7 @@ type APDU struct {
 	*APCI
 	*ASDU
 
-	frame Frame
+	frame       Frame
 }
 
 func (apdu *APDU) Parse(data []byte) error {

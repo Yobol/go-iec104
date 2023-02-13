@@ -46,6 +46,9 @@ type ASDU struct {
 	org    ORG    // 8  bits
 	coa    COA    // 16 bits
 
+	toBeHandled bool
+	sendSFrame  bool
+
 	ios     []*InformationObject
 	Signals []*InformationElement
 }
@@ -139,56 +142,79 @@ const (
 	// Process information in monitor direction
 
 	// MSpNa1 indicates single point information.
-	// InformationElement Format: SIQ
-	// Valid COT: 2,3,5,11,20,20+G
+	// InformationElementType: SIQ
+	// COT: 2,3,5,11,20,20+G
 	// [遥信 - 单点 - 不带时标]
-	MSpNa1 TypeID = 0x1
+	MSpNa1 TypeID = 0x1 // 1
 	// MSpTa1 indicates single point information with time tag CP24Time2a.
-	// InformationElement Format: SIQ + CP24Time2a
-	// Valid COT: 3,5,11,12
-	// [遥信 - 单点 - 3 字节时标]
-	MSpTa1 TypeID = 0x2
+	// InformationElementType: SIQ + CP24Time2a
+	// COT: 3,5,11,12
+	// [遥信 - 单点 - 三字节时标]
+	MSpTa1 TypeID = 0x2 // 2
 	// MDpNa1 indicates double point information.
-	// InformationElement Format: DIQ
-	// Valid COT: 2,3,5,11,12,20,20+G
+	// InformationElementType: DIQ
+	// COT: 2,3,5,11,12,20,20+G
 	// [遥信 - 双点 - 不带时标]
-	MDpNa1 TypeID = 0x3
+	MDpNa1 TypeID = 0x3 // 3
 	// MDpTa1 indicates double point information with time tag CP24Time2a.
-	// InformationElement Format: DIQ + CP24Time2a
-	// Valid COT: 3,5,11,12
-	// [遥信 - 双点 - 3 字节时标]
-	MDpTa1 TypeID = 0x4
-	// MMeNd1 indicates measured value, normalized value without quality descriptor
-	// InformationElement Format: NVA
-	// Valid COT: 1,2,3,5,11,12,20,20+G
+	// InformationElementType: DIQ + CP24Time2a
+	// COT: 3,5,11,12
+	// [遥信 - 双点 - 三字节时标]
+	MDpTa1 TypeID = 0x4 // 4
+	// MMeNa1 indicates measured value, normalized value.
+	// InformationElementType: NVA + QDS
+	// COT: 2, 3, 5, 11, 12, 20, 20+G
+	MMeNa1 TypeID = 0x9 // 9
+	// MMeTa1 indicates measured value, normalized value with time tag.
+	// InformationElementType: NVA + QDS + CP24Time2a
+	// COT: 3, 5
+	MMeTa1 TypeID = 0xa // 10
+	// MMeNb1 indicates measured value, scaled value.
+	// InformationElementType: SVA + QDS
+	// COT: 2, 3, 5, 11, 12, 20, 20+G
+	MMeNb1 TypeID = 0xb // 11
+	// MMeTb1 indicates measured value, scaled value with time tag.
+	// InformationElementType: SVA + QDS + CP24Time2a
+	// COT: 3, 5
+	MMeTb1 TypeID = 0xa
+	// MItNa1 indicates integrated totals.
+	// InformationElementType: BCR
+	// COT: 2, CotReqcogen, 37+G
+	MItNa1 TypeID = 0xf // 15
+	// MItTa1 indicates integrated totals with time tag.
+	// InformationElementType: BCR + CP24Time2a
+	// COT: 3, CotReqcogen, 37+G
+	MItTa1 TypeID = 0x10 // 16
+	// MMeNd1 indicates measured value, normalized value without quality descriptor.
+	// InformationElementType: NVA
+	// COT: 1,2,3,5,11,12,20,20+G
 	// [遥测 - 归一化值 - 不带时标 - 不带品质描述]
 	MMeNd1 TypeID = 0x15 // 21
 
 	// Process telegrams with long time tag (7 bytes)
 
 	// MSpTb1 indicates single point information with time tag CP56Time2a.
-	// InformationElement Format: SIQ + CP56Time2a
-	// Valid COT: 3,5,11,12
+	// InformationElementType: SIQ + CP56Time2a
+	// COT: 3,5,11,12
 	MSpTb1 TypeID = 0x1e
 	// MDpTb1 indicates double point information with time tag CP56Time2a.
-	// InformationElement Format: DIQ + CP56Time2a
-	// Valid COTs: 3,5,11,12
+	// InformationElementType: DIQ + CP56Time2a
+	// COT: 3,5,11,12
 	MDpTb1 TypeID = 0x1f
 
 	// System information in control direction.
 
 	// CIcNa1 indicates general interrogation command. [召唤全数据]
-	// InformationElement Format: QOI
-	// Valid COT: 6,7,8,9,10,44,45,46,47
-	// ASDU Body: 1 InformationObject [ 3 bytes IOA + 1 byte Value ]
+	// InformationElementType: QOI
+	// COT: 6,7,8,9,10,44,45,46,47
 	CIcNa1 TypeID = 0x64 // 100
 	// CCiNa1 indicates counter interrogation command. [召唤全电度]
-	// InformationElement Format: QCC
-	// Valid COT: 6,7,8,9,10,44,45,46,47
+	// InformationElementType: QCC
+	// COT: 6,7,8,9,10,44,45,46,47
 	CCiNa1 TypeID = 0x65 // 101
 	// CCsNa1 indicates clock synchronization command. [时钟同步]
-	// InformationElement Format: CP56Time2a
-	// Valid COT: 3,6,7,44,45,46,47
+	// InformationElementType: CP56Time2a
+	// COT: 3,6,7,44,45,46,47
 	CCsNa1 TypeID = 0x67 // 103
 )
 
@@ -301,46 +327,48 @@ type COT uint8
 
 const (
 	// the standard definitions of COT
+
 	// 14-19 is reserved for further compatible definitions
-	CotPer, CotCyc COT = 1, 1 // periodic, cyclic
-	CotBack        COT = 2    // background scan
-	CotSpt         COT = 3    // spontaneous
-	CotInit        COT = 4    // initialized
-	CotReq         COT = 5    // request or requested
-	CotAct         COT = 6    // activation
-	CotActCon      COT = 7    // activation confirmation
-	CotDeact       COT = 8    // deactivation
-	CotDeactCon    COT = 9    // deactivation confirmation
-	CotActTerm     COT = 10   // activation termination
-	CotRetRem      COT = 11   // return information caused by a remote command
-	CotRetLoc      COT = 12   // return information caused by a local command
-	CotFile        COT = 13   // file transfer
-	CotInrogen     COT = 20   // interrogated by general interrogation
-	CotInro1       COT = 21   // interrogated by interrogation group1
-	CotInro2       COT = 22   // interrogated by interrogation group2
-	CotInro3       COT = 23   // interrogated by interrogation group3
-	CotInro4       COT = 24   // interrogated by interrogation group4
-	CotInro5       COT = 25   // interrogated by interrogation group5
-	CotInro6       COT = 26   // interrogated by interrogation group6
-	CotInro7       COT = 27   // interrogated by interrogation group7
-	CotInro8       COT = 28   // interrogated by interrogation group8
-	CotInro9       COT = 29   // interrogated by interrogation group9
-	CotInro10      COT = 30   // interrogated by interrogation group10
-	CotInro11      COT = 31   // interrogated by interrogation group11
-	CotInro12      COT = 32   // interrogated by interrogation group12
-	CotInro13      COT = 33   // interrogated by interrogation group13
-	CotInro14      COT = 34   // interrogated by interrogation group14
-	CotInro15      COT = 35   // interrogated by interrogation group15
-	CotInro16      COT = 36   // interrogated by interrogation group16
-	CotReqcogen    COT = 37   // interrogated by counter general interrogation
-	CotReqco1      COT = 38   // interrogated by interrogation counter group 1
-	CotReqco2      COT = 39   // interrogated by interrogation counter group 2
-	CotReqco3      COT = 40   // interrogated by interrogation counter group 3
-	CotReqco4      COT = 41   // interrogated by interrogation counter group 4
-	CotUnType      COT = 44   // unknown type
-	CotUnCause     COT = 45   // unknown cause
-	CotUnAsduAddr  COT = 46   // unknown asdu address
-	CotUnObjAddr   COT = 47   // unknown object address
+
+	CotPerCyc     COT = 1  // periodic, cyclic
+	CotBack       COT = 2  // background scan
+	CotSpt        COT = 3  // spontaneous
+	CotInit       COT = 4  // initialized
+	CotReq        COT = 5  // request or requested
+	CotAct        COT = 6  // activation
+	CotActCon     COT = 7  // activation confirmation
+	CotDeact      COT = 8  // deactivation
+	CotDeactCon   COT = 9  // deactivation confirmation
+	CotActTerm    COT = 10 // activation termination
+	CotRetRem     COT = 11 // return information caused by a remote command
+	CotRetLoc     COT = 12 // return information caused by a local command
+	CotFile       COT = 13 // file transfer
+	CotInrogen    COT = 20 // interrogated by general interrogation
+	CotInro1      COT = 21 // interrogated by general interrogation group1
+	CotInro2      COT = 22 // interrogated by general interrogation group2
+	CotInro3      COT = 23 // interrogated by general interrogation group3
+	CotInro4      COT = 24 // interrogated by general interrogation group4
+	CotInro5      COT = 25 // interrogated by general interrogation group5
+	CotInro6      COT = 26 // interrogated by general interrogation group6
+	CotInro7      COT = 27 // interrogated by general interrogation group7
+	CotInro8      COT = 28 // interrogated by general interrogation group8
+	CotInro9      COT = 29 // interrogated by general interrogation group9
+	CotInro10     COT = 30 // interrogated by general interrogation group10
+	CotInro11     COT = 31 // interrogated by general interrogation group11
+	CotInro12     COT = 32 // interrogated by general interrogation group12
+	CotInro13     COT = 33 // interrogated by general interrogation group13
+	CotInro14     COT = 34 // interrogated by general interrogation group14
+	CotInro15     COT = 35 // interrogated by general interrogation group15
+	CotInro16     COT = 36 // interrogated by general interrogation group16
+	CotReqcogen   COT = 37 // interrogated by counter interrogation
+	CotReqco1     COT = 38 // interrogated by counter interrogation group 1
+	CotReqco2     COT = 39 // interrogated by counter interrogation group 2
+	CotReqco3     COT = 40 // interrogated by counter interrogation group 3
+	CotReqco4     COT = 41 // interrogated by counter interrogation group 4
+	CotUnType     COT = 44 // unknown type
+	CotUnCause    COT = 45 // unknown cause
+	CotUnAsduAddr COT = 46 // unknown asdu address
+	CotUnObjAddr  COT = 47 // unknown object address
 
 	// TODO How to support COT for special use?
 )
