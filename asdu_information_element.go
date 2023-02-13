@@ -1,5 +1,7 @@
 package iec104
 
+import "time"
+
 /*
 InformationElement is a building block used to transmit information. Format and length of each information differs
 and is given by the standard. The standard also describes how encoded values are interpreted.
@@ -10,21 +12,88 @@ type InformationElement struct {
 	Value   float64           `json:"value"`
 	Raw     []byte            `json:"raw"`
 	Quality QualityDescriptor `json:"quality"` // if the value's quality is not zero, it means the value is not valid!
-	Ts      uint64            `json:"ts"`
+	Ts      time.Time         `json:"ts"`
 
 	Format InformationElementFormat
+}
+
+func (ie *InformationElement) IsValid() bool {
+	return ie.Quality == 0
+}
+
+func (ie *InformationElement) getSIQ(data byte) {
+	ie.Format = append(ie.Format, SIQ)
+	ie.Quality = QualityDescriptor(data & 0xf0)
+	ie.Value = float64(parseLittleEndianUint16([]byte{data & 0b1, 0x00})) // 0b1 represents open; 0b0 represents close.
+}
+
+func (ie *InformationElement) getDIQ(data byte) {
+	ie.Format = append(ie.Format, DIQ)
+	ie.Quality = QualityDescriptor(data & 0xf0)
+	ie.Value = float64(parseLittleEndianUint16([]byte{data & 0b11, 0x00})) // 0b01 represents close; 0b10 represents open.
+}
+
+func (ie *InformationElement) getNVA(data []byte) {
+	ie.Format = append(ie.Format, NVA)
+	ie.Value = float64(parseLittleEndianInt16(data[:2])) // FIXME: NORMALIZED VALUE, NOT SCALED VALUE!!!
+}
+
+func (ie *InformationElement) getSVA(data []byte) {
+	ie.Format = append(ie.Format, SVA)
+	ie.Value = float64(parseLittleEndianInt16(data[:2]))
+}
+
+func (ie *InformationElement) getQDS(data byte) {
+	ie.Format = append(ie.Format, QDS)
+	ie.Quality = QualityDescriptor(data & 0xff)
+}
+
+func (ie *InformationElement) getBCR(data []byte) {
+	ie.Format = append(ie.Format, BCR)
+	ie.Value = float64(parseLittleEndianUint32(data[:4])) // data[4] is the description information.
+}
+
+// https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L1082
+func (ie *InformationElement) getCP24Time2a(data []byte) {
+	millisecond := parseLittleEndianUint16(data[:2])
+	nanosecond := (int(millisecond) % 1000) * int(time.Millisecond)
+	second := int(millisecond / 1000)
+	second += int(data[2]&0x3f) * 60
+
+	// FIXME Is it true to parse CP24Time2a by the following?
+	ie.Ts = time.Date(0, time.January, 1, 0, 0, second, nanosecond, time.Local)
+}
+
+// https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L1161
+func (ie *InformationElement) getCP56Time2a(data []byte) {
+	millisecond := parseLittleEndianUint16(data[:2])
+	nanosecond := (int(millisecond) % 1000) * int(time.Millisecond)
+	second := int(millisecond / 1000)
+	minute := int(data[2] & 0x3f)
+	hour := int(data[3] & 0x1f)
+	day := int(data[4] & 0x1f)
+	month := int(data[5] & 0x0f)
+	year := int(data[6]&0x7f) + 2000
+	if year < 70 {
+		year += 100
+	}
+
+	ie.Ts = time.Date(year, time.Month(month), day, hour, minute, second, nanosecond, time.Local)
 }
 
 func (asdu *ASDU) parseInformationElement(data []byte, ie *InformationElement) {
 	switch asdu.typeID {
 	case MSpNa1:
-		ie.Format = []InformationElementType{SIQ}
-		ie.Quality = QualityDescriptor(data[0] & 0xf0)
-		ie.Value = float64(parseLittleEndianUint16([]byte{data[0] & 0b1, 0x00})) // 0b1 represents open; 0b0 represents close.
+		ie.getSIQ(data[0])
 		switch asdu.cot {
 		case CotPerCyc:
-			_lg.Debugf("receive i frame: single point information of periodically/cyclically syncing at %d is %f"+
+			_lg.Debugf("receive i frame: single point information of periodically/cyclically syncing at %d is %f "+
 				"with Quality[IV: %v, NT: %v, SB: %v, BL: %v] [全遥信 - 带品质描述/不带时标单点遥信]", ie.Address,
+				ie.Value, (ie.Quality&IV) == IV, (ie.Quality&NT) == NT, (ie.Quality&SB) == SB, (ie.Quality&BL) == BL)
+			asdu.sendSFrame = true
+		case CotSpont:
+			_lg.Debugf("receive i frame: single point information of spontenuous change at %d is %f "+
+				"with Quality[IV: %v, NT: %v, SB: %v, BL: %v] [变化遥信 - 带品质描述/不带时标单点遥信]", ie.Address,
 				ie.Value, (ie.Quality&IV) == IV, (ie.Quality&NT) == NT, (ie.Quality&SB) == SB, (ie.Quality&BL) == BL)
 			asdu.sendSFrame = true
 		case CotInrogen:
@@ -33,14 +102,27 @@ func (asdu *ASDU) parseInformationElement(data []byte, ie *InformationElement) {
 				ie.Value, (ie.Quality&IV) == IV, (ie.Quality&NT) == NT, (ie.Quality&SB) == SB, (ie.Quality&BL) == BL)
 		}
 		asdu.toBeHandled = true
+	case MSpTa1:
+		ie.getSIQ(data[0])
+		ie.getCP24Time2a(data[1:4])
+		switch asdu.cot {
+		case CotSpont:
+			_lg.Debugf("receive i frame: single point information of spontenuous change with 24-bit time tag "+
+				"at %d is %f [%s] [突变 - 带 24 位时标的单点遥信]", ie.Address, ie.Value, ie.Ts)
+			asdu.toBeHandled = true
+		}
+		asdu.sendSFrame = true
 	case MDpNa1:
-		ie.Format = []InformationElementType{DIQ}
-		ie.Quality = QualityDescriptor(data[0] & 0xf0)
-		ie.Value = float64(parseLittleEndianUint16([]byte{data[0] & 0b11, 0x00})) // 0b01 represents close; 0b10 represents open.
+		ie.getDIQ(data[0])
 		switch asdu.cot {
 		case CotPerCyc:
 			_lg.Debugf("receive i frame: double point information of periodically/cyclically syncing at %d is %f "+
 				"with Quality[IV: %v, NT: %v, SB: %v, BL: %v] [全遥信 - 带品质描述/不带时标双点遥信]", ie.Address,
+				ie.Value, (ie.Quality&IV) == IV, (ie.Quality&NT) == NT, (ie.Quality&SB) == SB, (ie.Quality&BL) == BL)
+			asdu.sendSFrame = true
+		case CotSpont:
+			_lg.Debugf("receive i frame: double point information of spontenuous change at %d is %f "+
+				"with Quality[IV: %v, NT: %v, SB: %v, BL: %v] [变化遥信 - 带品质描述/不带时标双点遥信]", ie.Address,
 				ie.Value, (ie.Quality&IV) == IV, (ie.Quality&NT) == NT, (ie.Quality&SB) == SB, (ie.Quality&BL) == BL)
 			asdu.sendSFrame = true
 		case CotInrogen:
@@ -49,13 +131,26 @@ func (asdu *ASDU) parseInformationElement(data []byte, ie *InformationElement) {
 				ie.Value, (ie.Quality&IV) == IV, (ie.Quality&NT) == NT, (ie.Quality&SB) == SB, (ie.Quality&BL) == BL)
 		}
 		asdu.toBeHandled = true
+	case MDpTa1:
+		ie.getDIQ(data[0])
+		ie.getCP24Time2a(data[1:4])
+		switch asdu.cot {
+		case CotSpont:
+			_lg.Debugf("receive i frame: double point information of spontenuous change with 24-bit time tag "+
+				"at %d is %f [%s] [突变 - 带 24 位时标的双点遥信]", ie.Address, ie.Value, ie.Ts)
+			asdu.toBeHandled = true
+		}
+		asdu.sendSFrame = true
 	case MMeNd1:
-		ie.Format = []InformationElementType{NVA}
-		ie.Value = float64(parseLittleEndianInt16(data[:2])) // FIXME: NORMALIZED VALUE, NOT SCALED VALUE!!!
+		ie.getNVA(data[:2])
 		switch asdu.cot {
 		case CotPerCyc:
 			_lg.Debugf("receive i frame: measured value, normalized value without quality descriptor at %d is %f "+
 				"[全遥测 - 不带品质描述/不带时标/归一化遥测]", ie.Address, ie.Value)
+			asdu.sendSFrame = true
+		case CotSpont:
+			_lg.Debugf("receive i frame: measured value, normalized value without quality descriptor at %d is %f "+
+				"[突变 - 不带品质描述/不带时标/归一化遥测]", ie.Address, ie.Value)
 			asdu.sendSFrame = true
 		case CotInrogen:
 			_lg.Debugf("receive i frame: measured value, normalized value without quality descriptor at %d is %f "+
@@ -63,14 +158,33 @@ func (asdu *ASDU) parseInformationElement(data []byte, ie *InformationElement) {
 		}
 		asdu.toBeHandled = true
 	case MItNa1:
+		ie.getBCR(data[:5])
 		switch asdu.cot {
 		case CotReqcogen:
-			ie.Format = []InformationElementType{BCR}
-			ie.Value = float64(parseLittleEndianUint32(data[:4])) // data[4] is the description information.
 			_lg.Debugf("receive i frame: response of counter interrogation at %d is %f "+
 				"[总电度响应]", ie.Address, ie.Value)
 			asdu.toBeHandled = true
 		}
+	case MSpTb1:
+		ie.getSIQ(data[0])
+		ie.getCP56Time2a(data[1:8])
+		switch asdu.cot {
+		case CotSpont:
+			_lg.Debugf("receive i frame: single point information of spontenuous change with 56-bit time tag "+
+				"at %d is %f [%s] [突变 - 带 56 位时标的单点遥信]", ie.Address, ie.Value, ie.Ts)
+			asdu.toBeHandled = true
+		}
+		asdu.sendSFrame = true
+	case MDpTb1:
+		ie.getDIQ(data[0])
+		ie.getCP56Time2a(data[1:8])
+		switch asdu.cot {
+		case CotSpont:
+			_lg.Debugf("receive i frame: double point information of spontenuous change with 56-bit time tag "+
+				"at %d is %f [%s] [突变 - 带 56 位时标的双点遥信]", ie.Address, ie.Value, ie.Ts)
+			asdu.toBeHandled = true
+		}
+		asdu.sendSFrame = true
 	case CIcNa1:
 		switch asdu.cot {
 		case CotActCon:
@@ -171,7 +285,7 @@ const (
 	IEEESTD754
 	// BCR indicates binary counter reading.
 	// Length: 5 bytes
-	// TypeID: MItNa1, MItNa1, 37
+	// TypeID: MItNa1
 	BCR
 
 	// Protection.
@@ -212,15 +326,15 @@ const (
 
 	// CP56Time2a indicates 7-byte binary time.
 	// Length: 7 bytes
-	// TypeID: 4,6,8,10,12,14,16,17,18,19,31,32,33,34,36,37,38,39,40,103,126
+	// TypeID: MSpTb1, MDpTb1
 	CP56Time2a
 	// CP24Time2a indicates 3-byte binary time.
 	// Length: 3 bytes
-	// TypeID: 4,5,6,8,10,12,14,16,17,18,19,31,32,33,34,36,37,38,39,40
+	// TypeID:
 	CP24Time2a
 	// CP16Time2a indicates 2-byte binary time/
 	// Length: 2 bytes
-	// TypeID: 17,18,19,38,39,40,106
+	// TypeID:
 	CP16Time2a
 
 	// Qualifiers

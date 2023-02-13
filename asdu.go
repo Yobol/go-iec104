@@ -143,29 +143,29 @@ const (
 
 	// MSpNa1 indicates single point information.
 	// InformationElementType: SIQ
-	// COT: 2,3,5,11,20,20+G
+	// COT: CotSpont
 	// [遥信 - 单点 - 不带时标]
 	MSpNa1 TypeID = 0x1 // 1
 	// MSpTa1 indicates single point information with time tag CP24Time2a.
 	// InformationElementType: SIQ + CP24Time2a
-	// COT: 3,5,11,12
+	// COT: CotSpont
 	// [遥信 - 单点 - 三字节时标]
 	MSpTa1 TypeID = 0x2 // 2
 	// MDpNa1 indicates double point information.
 	// InformationElementType: DIQ
-	// COT: 2,3,5,11,12,20,20+G
+	// COT: CotSpont
 	// [遥信 - 双点 - 不带时标]
 	MDpNa1 TypeID = 0x3 // 3
 	// MDpTa1 indicates double point information with time tag CP24Time2a.
 	// InformationElementType: DIQ + CP24Time2a
-	// COT: 3,5,11,12
+	// COT: CotSpont
 	// [遥信 - 双点 - 三字节时标]
 	MDpTa1 TypeID = 0x4 // 4
 	// MMeNa1 indicates measured value, normalized value.
 	// InformationElementType: NVA + QDS
 	// COT: 2, 3, 5, 11, 12, 20, 20+G
 	MMeNa1 TypeID = 0x9 // 9
-	// MMeTa1 indicates measured value, normalized value with time tag.
+	// MMeTa1 indicates measured value, normalized value with time tag CP24Time2a.
 	// InformationElementType: NVA + QDS + CP24Time2a
 	// COT: 3, 5
 	MMeTa1 TypeID = 0xa // 10
@@ -173,7 +173,7 @@ const (
 	// InformationElementType: SVA + QDS
 	// COT: 2, 3, 5, 11, 12, 20, 20+G
 	MMeNb1 TypeID = 0xb // 11
-	// MMeTb1 indicates measured value, scaled value with time tag.
+	// MMeTb1 indicates measured value, scaled value with time tag CP24Time2a.
 	// InformationElementType: SVA + QDS + CP24Time2a
 	// COT: 3, 5
 	MMeTb1 TypeID = 0xa
@@ -181,7 +181,7 @@ const (
 	// InformationElementType: BCR
 	// COT: 2, CotReqcogen, 37+G
 	MItNa1 TypeID = 0xf // 15
-	// MItTa1 indicates integrated totals with time tag.
+	// MItTa1 indicates integrated totals with time tag CP24Time2a.
 	// InformationElementType: BCR + CP24Time2a
 	// COT: 3, CotReqcogen, 37+G
 	MItTa1 TypeID = 0x10 // 16
@@ -332,7 +332,7 @@ const (
 
 	CotPerCyc     COT = 1  // periodic, cyclic
 	CotBack       COT = 2  // background scan
-	CotSpt        COT = 3  // spontaneous
+	CotSpont      COT = 3  // spontaneous
 	CotInit       COT = 4  // initialized
 	CotReq        COT = 5  // request or requested
 	CotAct        COT = 6  // activation
@@ -409,7 +409,7 @@ COA (Common Address of ASDU, 2 bytes) is normally interpreted as a station addre
   - TypeID = CIcNa1: replay with particular system data snapshot at common time
   - TypeID = CCiNa1: freeze totals at common time
   - TypeID = CCsNa1: synchronize clocks to common time
-  - TypeID = C_RP_NC_1: simultaneous reset
+  - TypeID = CRpNc1: simultaneous reset
 */
 type COA = uint16
 
