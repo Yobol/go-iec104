@@ -143,7 +143,7 @@ const (
 
 	// MSpNa1 indicates single point information.
 	// InformationElementType: SIQ
-	// COT: CotSpont
+	// COT: CotPerCyc, CotSpont, CotInrogen
 	// [遥信 - 单点 - 不带时标]
 	MSpNa1 TypeID = 0x1 // 1
 	// MSpTa1 indicates single point information with time tag CP24Time2a.
@@ -176,7 +176,15 @@ const (
 	// MMeTb1 indicates measured value, scaled value with time tag CP24Time2a.
 	// InformationElementType: SVA + QDS + CP24Time2a
 	// COT: 3, 5
-	MMeTb1 TypeID = 0xa
+	MMeTb1 TypeID = 0xc // 12
+	// MMeNc1 indicates measured value, short floating point value.
+	// InformationElementType: IEEESTD754 + QDS
+	// COT: 2, 3, 5, 11, 12, 20, 20+G
+	MMeNc1 TypeID = 0xd // 13
+	// MMeTc1 indicates measured value, short floating point value with time tag CP24Time2a.
+	// InformationElementType: IEEESTD754 + QDS + CP24Time2a
+	// COT: 2, 3, 5, 11, 12, 20, 20+G
+	MMeTc1 TypeID = 0xe // 14
 	// MItNa1 indicates integrated totals.
 	// InformationElementType: BCR
 	// COT: 2, CotReqcogen, 37+G
@@ -196,11 +204,27 @@ const (
 	// MSpTb1 indicates single point information with time tag CP56Time2a.
 	// InformationElementType: SIQ + CP56Time2a
 	// COT: 3,5,11,12
-	MSpTb1 TypeID = 0x1e
+	MSpTb1 TypeID = 0x1e // 30
 	// MDpTb1 indicates double point information with time tag CP56Time2a.
 	// InformationElementType: DIQ + CP56Time2a
 	// COT: 3,5,11,12
-	MDpTb1 TypeID = 0x1f
+	MDpTb1 TypeID = 0x1f // 31
+	// MMeTd1 indicates measured value, normalized value with time tag CP56Time2a.
+	// InformationElementType: NVA + QDS + CP56Time2a
+	// COT: CotSpont, 5
+	MMeTd1 TypeID = 0x22 // 34
+	// MMeTe1 indicates measured value, scaled value with time tag CP56Time2a.
+	// InformationElementType: SVA + QDS + CP56Time2a
+	// COT: CotSpont, 5
+	MMeTe1 TypeID = 0x23 // 35
+	// MMeTf1 indicates measured value, short floating point value with time tag CP56Time2a.
+	// InformationElementType: IEEESTD754 + QDS + CP56Time2a
+	// COT: 2, CotSpont, 5, 11, 12, 20, 20+G
+	MMeTf1 TypeID = 0x24 // 36
+	// MItTb1 indicates integrated totals with time tag CP56Time2a.
+	// InformationElementType: BCR + CP56Time2a
+	// COT: CotSpont, CotReqcogen, 37+G
+	MItTb1 TypeID = 0x25 // 37
 
 	// System information in control direction.
 
