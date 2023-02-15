@@ -9,20 +9,64 @@ import (
 
 const (
 	serverAddress = "172.16.251.22:6666"
-	timeout       = 10 * time.Second
 )
+
+type handler struct{}
+
+func (h handler) GeneralInterrogationHandler(apdu *iec104.APDU) error {
+	for _, signal := range apdu.Signals {
+		fmt.Printf("%f ", signal.Value)
+	}
+	fmt.Println()
+	return nil
+}
+
+func (h handler) CounterInterrogationHandler(apdu *iec104.APDU) error {
+	for _, signal := range apdu.Signals {
+		fmt.Printf("%f ", signal.Value)
+	}
+	fmt.Println()
+	return nil
+}
+
+func (h handler) ReadCommandHandler(apdu *iec104.APDU) error {
+	return nil
+}
+
+func (h handler) ClockSynchronizationHandler(apdu *iec104.APDU) error {
+	return nil
+}
+
+func (h handler) TestCommandHandler(apdu *iec104.APDU) error {
+	return nil
+}
+
+func (h handler) ResetProcessCommandHandler(apdu *iec104.APDU) error {
+	return nil
+}
+
+func (h handler) DelayAcquisitionCommandHandler(apdu *iec104.APDU) error {
+	return nil
+}
+
+func (h handler) APDUHandler(apdu *iec104.APDU) error {
+	for _, signal := range apdu.Signals {
+		fmt.Printf("%f ", signal.Value)
+	}
+	fmt.Println()
+	return nil
+}
 
 func main() {
 	logger := logrus.New()
 	logger.SetLevel(logrus.DebugLevel)
 	iec104.SetLogger(logger)
 
-	client := iec104.NewClient(serverAddress, timeout, nil, func(apdu *iec104.APDU) {
-		for _, signal := range apdu.Signals {
-			fmt.Printf("%f ", signal.Value)
-		}
-		fmt.Println()
-	})
+	option, err := iec104.NewClientOption(serverAddress, &handler{})
+	if err != nil {
+		panic(any(err))
+	}
+	client := iec104.NewClient(option)
 	if err := client.Connect(); err != nil {
 		panic(any(err))
 	}
@@ -57,6 +101,11 @@ func main() {
 		if err := client.SendDoubleCommand(iec104.IOA(1), false /* close */); err != nil {
 			panic(any(err))
 		}
+	}()
+
+	go func() {
+		time.Sleep(5 * time.Second)
+		fmt.Printf("Connected: %v\n", client.IsConnected())
 	}()
 
 	time.Sleep(30 * time.Minute)

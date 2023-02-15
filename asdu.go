@@ -290,11 +290,20 @@ const (
 	// InformationElementType: CP56Time2a
 	// COT: 3,6,7,44,45,46,47
 	CCsNa1 TypeID = 0x67 // 103
+	// CTsNb1 indicates test command.
+	// InformationElementType: FBP
+	// COT: 6, 7, 44, 45, 46, 47
+	CTsNb1 TypeID = 0x68 // 104
 	// CRpNc1 indicates reset process command.
 	// InformationElementType: QRP
 	// COT: 6, 7, 44, 45, 46, 47
 	CRpNc1 TypeID = 0x69 // 105
+	// CCdNa1 indicates delay acquisition command.
+	// InformationElementType: CP16Time2a
+	// COT: CotAct, CotActCon, 44, 45, 46, 47
+	CCdNa1 TypeID = 0x6a // 106
 	// CTsTa1 indicates command with time tag CP56Time2a.
+	// InformationElementType:
 	CTsTa1 TypeID = 0x6b // 107
 )
 
@@ -410,45 +419,45 @@ const (
 
 	// 14-19 is reserved for further compatible definitions
 
-	CotPerCyc     COT = 1  // periodic, cyclic
-	CotBack       COT = 2  // background scan
-	CotSpont      COT = 3  // spontaneous
-	CotInit       COT = 4  // initialized
-	CotReq        COT = 5  // request or requested
-	CotAct        COT = 6  // activation
-	CotActCon     COT = 7  // activation confirmation
-	CotDeact      COT = 8  // deactivation
-	CotDeactCon   COT = 9  // deactivation confirmation
-	CotActTerm    COT = 10 // activation termination
-	CotRetRem     COT = 11 // return information caused by a remote command
-	CotRetLoc     COT = 12 // return information caused by a local command
-	CotFile       COT = 13 // file transfer
-	CotInrogen    COT = 20 // interrogated by general interrogation
-	CotInro1      COT = 21 // interrogated by general interrogation group1
-	CotInro2      COT = 22 // interrogated by general interrogation group2
-	CotInro3      COT = 23 // interrogated by general interrogation group3
-	CotInro4      COT = 24 // interrogated by general interrogation group4
-	CotInro5      COT = 25 // interrogated by general interrogation group5
-	CotInro6      COT = 26 // interrogated by general interrogation group6
-	CotInro7      COT = 27 // interrogated by general interrogation group7
-	CotInro8      COT = 28 // interrogated by general interrogation group8
-	CotInro9      COT = 29 // interrogated by general interrogation group9
-	CotInro10     COT = 30 // interrogated by general interrogation group10
-	CotInro11     COT = 31 // interrogated by general interrogation group11
-	CotInro12     COT = 32 // interrogated by general interrogation group12
-	CotInro13     COT = 33 // interrogated by general interrogation group13
-	CotInro14     COT = 34 // interrogated by general interrogation group14
-	CotInro15     COT = 35 // interrogated by general interrogation group15
-	CotInro16     COT = 36 // interrogated by general interrogation group16
-	CotReqcogen   COT = 37 // interrogated by counter interrogation
-	CotReqco1     COT = 38 // interrogated by counter interrogation group 1
-	CotReqco2     COT = 39 // interrogated by counter interrogation group 2
-	CotReqco3     COT = 40 // interrogated by counter interrogation group 3
-	CotReqco4     COT = 41 // interrogated by counter interrogation group 4
-	CotUnType     COT = 44 // unknown type
-	CotUnCause    COT = 45 // unknown cause
-	CotUnAsduAddr COT = 46 // unknown asdu address
-	CotUnObjAddr  COT = 47 // unknown object address
+	CotPerCyc               COT = 1  // periodic, cyclic
+	CotBack                 COT = 2  // background scan
+	CotSpont                COT = 3  // spontaneous
+	CotInit                 COT = 4  // initialized
+	CotReq                  COT = 5  // request or requested
+	CotAct                  COT = 6  // activation
+	CotActCon               COT = 7  // activation confirmation
+	CotDeact                COT = 8  // deactivation
+	CotDeactCon             COT = 9  // deactivation confirmation
+	CotActTerm              COT = 10 // activation termination
+	CotRetRem               COT = 11 // return information caused by a remote command
+	CotRetLoc               COT = 12 // return information caused by a local command
+	CotFile                 COT = 13 // file transfer
+	CotInrogen              COT = 20 // interrogated by general interrogation
+	CotInro1                COT = 21 // interrogated by general interrogation group1
+	CotInro2                COT = 22 // interrogated by general interrogation group2
+	CotInro3                COT = 23 // interrogated by general interrogation group3
+	CotInro4                COT = 24 // interrogated by general interrogation group4
+	CotInro5                COT = 25 // interrogated by general interrogation group5
+	CotInro6                COT = 26 // interrogated by general interrogation group6
+	CotInro7                COT = 27 // interrogated by general interrogation group7
+	CotInro8                COT = 28 // interrogated by general interrogation group8
+	CotInro9                COT = 29 // interrogated by general interrogation group9
+	CotInro10               COT = 30 // interrogated by general interrogation group10
+	CotInro11               COT = 31 // interrogated by general interrogation group11
+	CotInro12               COT = 32 // interrogated by general interrogation group12
+	CotInro13               COT = 33 // interrogated by general interrogation group13
+	CotInro14               COT = 34 // interrogated by general interrogation group14
+	CotInro15               COT = 35 // interrogated by general interrogation group15
+	CotInro16               COT = 36 // interrogated by general interrogation group16
+	CotReqcogen             COT = 37 // interrogated by counter interrogation
+	CotReqco1               COT = 38 // interrogated by counter interrogation group 1
+	CotReqco2               COT = 39 // interrogated by counter interrogation group 2
+	CotReqco3               COT = 40 // interrogated by counter interrogation group 3
+	CotReqco4               COT = 41 // interrogated by counter interrogation group 4
+	CotUnknownType          COT = 44 // type identification unknown
+	CotUnknownCause         COT = 45 // cause of transmission unknown
+	CotUnknownAsduAddress   COT = 46 // ASDU address unknown
+	CotUnknownObjectAddress COT = 47 // information object address unknown
 
 	// TODO How to support COT for special use?
 )

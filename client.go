@@ -6,16 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"time"
 )
 
-type DataHandler func(apdu *APDU)
-
-func NewClient(address string, timeout time.Duration, tc *tls.Config, h DataHandler) *Client {
+func NewClient(option *ClientOption) *Client {
 	return &Client{
-		address: address,
-		tc:      tc,
-		timeout: timeout,
+		ClientOption: option,
 
 		org: ORG(0),
 		coa: COA(0x0001),
@@ -24,29 +19,26 @@ func NewClient(address string, timeout time.Duration, tc *tls.Config, h DataHand
 		recvChan:   make(chan *APDU),
 		dataChan:   make(chan *APDU),
 		cmdRspChan: make(chan *cmdRsp, 0),
-
-		dataHandler: h,
 	}
 }
 
 // Client in IEC 104 is also called as master or controlling station.
 type Client struct {
-	address string      // address of the iec104 server
-	tc      *tls.Config // whether we need secure network transmission using TLS
-	conn    net.Conn    // network channel with the iec104 substation/server
-	timeout time.Duration
+	*ClientOption
+	conn net.Conn // network channel with the iec104 substation/server
 
-	cancel      context.CancelFunc
-	sendChan    chan []byte // send data to server
-	recvChan    chan *APDU  // receive apdu from server
-	dataChan    chan *APDU  // make Client owner to handle data received from server by themselves
-	dataHandler DataHandler // the handler of data from received from server
-	cmdRspChan  chan *cmdRsp
+	cancel     context.CancelFunc
+	sendChan   chan []byte // send data to server
+	recvChan   chan *APDU  // receive apdu from server
+	dataChan   chan *APDU  // make Client owner to handle data received from server by themselves
+	cmdRspChan chan *cmdRsp
 
 	org      ORG    // originator address to identify controlling station when there are multiple controlling stations
 	coa      COA    // common address (or station address)
 	ssn, rsn uint16 // send sequence number, receive sequence number
 	ifn      uint16 // i-format frame number (for send S-frame data regularity)
+
+	status int32 // initial, connected, disconnected
 }
 
 func (c *Client) Connect() error {
@@ -63,16 +55,19 @@ func (c *Client) Connect() error {
 	go c.readingFromSocket(ctx)
 	go c.handlingData(ctx)
 
-	c.sendUFrame(UFrameFunctionStartDTA)
-	<-c.recvChan
+	c.onConnectHandler(c)
 	return nil
 }
 func (c *Client) dial() (err error) {
+	schema, address, timeout := c.server.Scheme, c.server.Host, c.connectTimeout
 	var conn net.Conn
-	if c.tc != nil {
-		conn, err = tls.Dial("tcp", c.address, c.tc)
-	} else {
-		conn, err = net.Dial("tcp", c.address)
+	switch schema {
+	case "tcp":
+		conn, err = net.DialTimeout("tcp", address, timeout)
+	case "ssl", "tls", "tcps":
+		conn, err = tls.DialWithDialer(&net.Dialer{Timeout: timeout}, "tcp", address, c.tc)
+	default:
+		return fmt.Errorf("unknown schema: %s", schema)
 	}
 	if err != nil {
 		return err
@@ -165,10 +160,39 @@ func (c *Client) handlingData(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case aspu := <-c.dataChan:
-			_lg.Debugf("handle data: TypeID: %X, COT: %X", aspu.ASDU.typeID, aspu.ASDU.cot)
-			go c.dataHandler(aspu)
+		case apdu := <-c.dataChan:
+			if err := c.handleData(apdu); err != nil {
+				_lg.Warnf("handle iFrame, got: %v", err)
+			}
 		}
+	}
+}
+func (c *Client) handleData(apdu *APDU) error {
+	defer func() {
+		if err := recover(); err != nil {
+			_lg.Errorf("client handler: %+v", err)
+		}
+	}()
+
+	_lg.Debugf("handle iFrame: TypeID: %X, COT: %X", apdu.ASDU.typeID, apdu.ASDU.cot)
+
+	switch apdu.typeID {
+	case CIcNa1:
+		return c.handler.GeneralInterrogationHandler(apdu)
+	case CCiNa1:
+		return c.handler.CounterInterrogationHandler(apdu)
+	case CRdNa1:
+		return c.handler.ReadCommandHandler(apdu)
+	case CCsNa1:
+		return c.handler.ClockSynchronizationHandler(apdu)
+	case CTsNb1, CTsTa1:
+		return c.handler.TestCommandHandler(apdu)
+	case CRpNc1:
+		return c.handler.ResetProcessCommandHandler(apdu)
+	case CCdNa1:
+		return c.handler.DelayAcquisitionCommandHandler(apdu)
+	default:
+		return c.handler.APDUHandler(apdu)
 	}
 }
 
@@ -229,13 +253,11 @@ func (c *Client) readApduBody(apduLen uint8) (*APDU, error) {
 }
 
 func (c *Client) IsConnected() bool {
-	panic(any("implement me"))
-	return false
+	return true
 }
 
 func (c *Client) Close() {
-	c.sendUFrame(UFrameFunctionStopDTA)
-	<-c.recvChan // receive StopDTC
+	c.onDisconnectHandler(c)
 
 	if c.cancel != nil {
 		c.cancel()
@@ -311,7 +333,7 @@ func (c *Client) SendSingleCommand(address IOA, close bool) error {
 		ios:    ios,
 	})
 	select {
-	case rsp := <- c.cmdRspChan:
+	case rsp := <-c.cmdRspChan:
 		if rsp.err != nil {
 			return rsp.err
 		}
@@ -341,7 +363,7 @@ func (c *Client) SendSingleCommand(address IOA, close bool) error {
 		ios:    ios,
 	})
 	select {
-	case rsp := <- c.cmdRspChan:
+	case rsp := <-c.cmdRspChan:
 		if rsp.err != nil {
 			return rsp.err
 		}
@@ -374,7 +396,7 @@ func (c *Client) SendDoubleCommand(address IOA, close bool) error {
 	})
 
 	select {
-	case rsp := <- c.cmdRspChan:
+	case rsp := <-c.cmdRspChan:
 		if rsp.err != nil {
 			return rsp.err
 		}
@@ -405,7 +427,7 @@ func (c *Client) SendDoubleCommand(address IOA, close bool) error {
 	})
 
 	select {
-	case rsp := <- c.cmdRspChan:
+	case rsp := <-c.cmdRspChan:
 		if rsp.err != nil {
 			return rsp.err
 		}
