@@ -48,6 +48,7 @@ type ASDU struct {
 
 	toBeHandled bool
 	sendSFrame  bool
+	cmdRsp      *cmdRsp
 
 	ios     []*InformationObject
 	Signals []*InformationElement
@@ -178,11 +179,11 @@ const (
 	// COT: 3, 5
 	MMeTb1 TypeID = 0xc // 12
 	// MMeNc1 indicates measured value, short floating point value.
-	// InformationElementType: IEEESTD754 + QDS
+	// InformationElementType: IEEE754STD + QDS
 	// COT: 2, 3, 5, 11, 12, 20, 20+G
 	MMeNc1 TypeID = 0xd // 13
 	// MMeTc1 indicates measured value, short floating point value with time tag CP24Time2a.
-	// InformationElementType: IEEESTD754 + QDS + CP24Time2a
+	// InformationElementType: IEEE754STD + QDS + CP24Time2a
 	// COT: 2, 3, 5, 11, 12, 20, 20+G
 	MMeTc1 TypeID = 0xe // 14
 	// MItNa1 indicates integrated totals.
@@ -218,13 +219,58 @@ const (
 	// COT: CotSpont, 5
 	MMeTe1 TypeID = 0x23 // 35
 	// MMeTf1 indicates measured value, short floating point value with time tag CP56Time2a.
-	// InformationElementType: IEEESTD754 + QDS + CP56Time2a
+	// InformationElementType: IEEE754STD + QDS + CP56Time2a
 	// COT: 2, CotSpont, 5, 11, 12, 20, 20+G
 	MMeTf1 TypeID = 0x24 // 36
 	// MItTb1 indicates integrated totals with time tag CP56Time2a.
 	// InformationElementType: BCR + CP56Time2a
 	// COT: CotSpont, CotReqcogen, 37+G
 	MItTb1 TypeID = 0x25 // 37
+
+	// Process information in control direction.
+
+	// CScNa1 indicates single command.
+	// InformationElementType: SCO
+	// COT: 6, 7, 8, 9, 10, 44, 45, 46, 47
+	CScNa1 TypeID = 0x2d // 45
+	// CDcNa1 indicates double command.
+	// InformationElementType: DCO
+	// COT: 6, 7, 8, 9, 10, 44, 45, 46, 47
+	CDcNa1 TypeID = 0x2e // 46
+	// CRcNa1 indicates regulating step command.
+	// InformationElementType: RCO
+	// COT: 6, 7, 8, 9, 10, 44, 45, 46, 47
+	CRcNa1 TypeID = 0x2f // 47
+	// CSeNa1 indicates set-point command, normalized value.
+	// InformationElementType: NVA + QOS
+	// COT: 6, 7, 8, 9, 10, 44, 45, 46, 47
+	CSeNa1 TypeID = 0x30 // 48
+	// CSeNb1 indicates set-point command, scaled value.
+	// InformationElementType: SVA + QOS
+	// COT: 6, 7, 8, 9, 10, 44, 45, 46, 47
+	CSeNb1 TypeID = 0x31 // 49
+	// CSeNc1 indicates set-point command, short floating point value.
+	// InformationElementType: IEEE754STD + QOS
+	// COT: 6, 7, 8, 9, 10, 44, 45, 46, 47
+	CSeNc1 TypeID = 0x32 // 50
+
+	// Command telegrams with long time tag.
+
+	// CScTa1 indicates single command with time tag CP56Time2a.
+	// InformationElementType: SCO + CP56Time2a
+	CScTa1 TypeID = 0x3a // 58
+	// CDcTa1 indicates double command with time tag CP56Time2a.
+	// InformationElementType: DCO + CP56Time2a
+	CDcTa1 TypeID = 0x3b // 59
+	// CSeTa1 indicates set-point command, normalized value with time tag CP56Time2a.
+	// InformationElementType: NVA + QOS + CP56Time2a
+	CSeTa1 TypeID = 0x3d // 61
+	// CSeTb1 indicates set-point command, scaled value with time tag CP56Time2a.
+	// InformationElementType: SVA + QOS + CP56Time2a
+	CSeTb1 TypeID = 0x3e // 62
+	// CSeTc1 indicates set-point command, short floating point value with time tag CP56Time2a.
+	// InformationElementType: IEEE754STD + QOS + CP56Time2a
+	CSeTc1 TypeID = 0x3f // 63
 
 	// System information in control direction.
 
@@ -236,10 +282,20 @@ const (
 	// InformationElementType: QCC
 	// COT: 6,7,8,9,10,44,45,46,47
 	CCiNa1 TypeID = 0x65 // 101
+	// CRdNa1 indicates read command.
+	// InformationElementType: null
+	// COT: 5
+	CRdNa1 TypeID = 0x66 // 102
 	// CCsNa1 indicates clock synchronization command. [时钟同步]
 	// InformationElementType: CP56Time2a
 	// COT: 3,6,7,44,45,46,47
 	CCsNa1 TypeID = 0x67 // 103
+	// CRpNc1 indicates reset process command.
+	// InformationElementType: QRP
+	// COT: 6, 7, 44, 45, 46, 47
+	CRpNc1 TypeID = 0x69 // 105
+	// CTsTa1 indicates command with time tag CP56Time2a.
+	CTsTa1 TypeID = 0x6b // 107
 )
 
 func (asdu *ASDU) parseTypeID(data byte) TypeID {

@@ -43,5 +43,21 @@ func main() {
 		client.SendCounterInterrogation()
 	}()
 
+	go func() {
+		time.Sleep(3 * time.Second)
+		if err := client.SendSingleCommand(iec104.IOA(1), true /* close */); err != nil {
+			panic(any(err))
+		}
+		if err := client.SendSingleCommand(iec104.IOA(1), false /* close */); err != nil {
+			panic(any(err))
+		}
+		if err := client.SendDoubleCommand(iec104.IOA(1), true /* close */); err != nil {
+			panic(any(err))
+		}
+		if err := client.SendDoubleCommand(iec104.IOA(1), false /* close */); err != nil {
+			panic(any(err))
+		}
+	}()
+
 	time.Sleep(30 * time.Minute)
 }

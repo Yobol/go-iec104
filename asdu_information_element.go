@@ -27,6 +27,8 @@ func (ie *InformationElement) IsValid() bool {
 	return ie.Quality == 0
 }
 
+// https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L1278
+// https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L2413
 func (ie *InformationElement) getSIQ() {
 	ie.Format = append(ie.Format, SIQ)
 	ie.Quality = QualityDescriptor(ie.data[ie.offset] & 0xf0)
@@ -35,6 +37,8 @@ func (ie *InformationElement) getSIQ() {
 	ie.offset++
 }
 
+// https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L1298
+// https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L2437
 func (ie *InformationElement) getDIQ() {
 	ie.Format = append(ie.Format, DIQ)
 	ie.Quality = QualityDescriptor(ie.data[ie.offset] & 0xf0)
@@ -43,13 +47,17 @@ func (ie *InformationElement) getDIQ() {
 	ie.offset++
 }
 
+// https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L1367
+// https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L2637
 func (ie *InformationElement) getNVA() {
 	ie.Format = append(ie.Format, NVA)
-	ie.Value = float64(parseLittleEndianInt16(ie.data[ie.offset : ie.offset+2])) // FIXME: NORMALIZED VALUE, NOT SCALED VALUE!!!
+	ie.Value = float64(parseLittleEndianInt16(ie.data[ie.offset:ie.offset+2])) / 32768
 
 	ie.offset += 2
 }
 
+// https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L1398
+// https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L2641
 func (ie *InformationElement) getSVA() {
 	ie.Format = append(ie.Format, SVA)
 	ie.Value = float64(parseLittleEndianInt16(ie.data[ie.offset : ie.offset+2]))
@@ -58,13 +66,50 @@ func (ie *InformationElement) getSVA() {
 }
 
 // https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L1417
+// https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L2633
 func (ie *InformationElement) getIEEESTD754() {
-	ie.Format = append(ie.Format, IEEESTD754)
+	ie.Format = append(ie.Format, IEEE754STD)
 	ie.Value = float64(math.Float32frombits(parseLittleEndianUint32(ie.data[ie.offset : ie.offset+4])))
 	ie.offset += 4
 }
 
+// https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L1479
+// https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L2497
+func (ie *InformationElement) getQOS() {
+	ie.Format = append(ie.Format, QOS)
+
+	ie.offset += 1
+}
+
+// https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L1496
+// https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L2509
+func (ie *InformationElement) getSCO() {
+	ie.Format = append(ie.Format, SCO)
+	ie.Value = float64(parseLittleEndianUint16([]byte{ie.data[ie.offset], 0x00}))
+
+	ie.offset += 1
+}
+
+// https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L1514
+// https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L2525
+func (ie *InformationElement) getDCO() {
+	ie.Format = append(ie.Format, DCO)
+	ie.Value = float64(parseLittleEndianUint16([]byte{ie.data[ie.offset], 0x00}))
+
+	ie.offset += 1
+}
+
+// https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L1532
+// https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L2541
+func (ie *InformationElement) getRCO() {
+	ie.Format = append(ie.Format, RCO)
+	ie.Value = float64(parseLittleEndianUint16([]byte{ie.data[ie.offset], 0x00}))
+
+	ie.offset += 1
+}
+
 // https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L1318
+// https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L2461
 func (ie *InformationElement) getQDS() {
 	ie.Format = append(ie.Format, QDS)
 	ie.Quality = QualityDescriptor(ie.data[ie.offset] & 0xff)
@@ -73,6 +118,7 @@ func (ie *InformationElement) getQDS() {
 }
 
 // https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L1453
+// https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L2605
 func (ie *InformationElement) getBCR() {
 	ie.Format = append(ie.Format, BCR)
 	ie.Value = float64(parseLittleEndianUint32(ie.data[ie.offset : ie.offset+4])) // data[4] is the description information.
@@ -80,15 +126,16 @@ func (ie *InformationElement) getBCR() {
 	ie.offset += 5
 }
 
-// https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L1082
+// https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L1084
+// https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L2353
 func (ie *InformationElement) getCP24Time2a() {
 	millisecond := parseLittleEndianUint16(ie.data[ie.offset : ie.offset+2])
 	nanosecond := (int(millisecond) % 1000) * int(time.Millisecond)
 	second := int(millisecond / 1000)
-	second += int(ie.data[ie.offset+2]&0x3f) * 60
+	minute := int(ie.data[ie.offset+2] & 0x3f)
 
-	// FIXME Is it true to parse CP24Time2a by the following?
-	ie.Ts = time.Date(0, time.January, 1, 0, 0, second, nanosecond, time.Local)
+	// FIXME How to set year, month, day and hour for CP24Time2a?
+	ie.Ts = time.Date(0, time.January, 1, 0, minute, second, nanosecond, time.Local)
 	ie.offset += 3
 }
 
@@ -361,6 +408,72 @@ func (asdu *ASDU) parseInformationElement(data []byte, ie *InformationElement) {
 		}
 		asdu.toBeHandled = true
 		asdu.sendSFrame = true
+	case CScNa1:
+		ie.getSCO()
+		switch asdu.cot {
+		case CotActCon:
+			if ie.Value == 0x80 {
+				_lg.Debugf("receive i frame: select confirmation of single command - open [单点命令遥控选择确认 - 分闸]")
+				asdu.cmdRsp = &cmdRsp{}
+			} else if ie.Value == 0x81 {
+				_lg.Debugf("receive i frame: select confirmation of single command - close [单点命令遥控选择确认 - 合闸]")
+				asdu.cmdRsp = &cmdRsp{}
+			} else if ie.Value == 0x00 {
+				_lg.Debugf("receive i frame: execute confirmation of single command - open [单点命令遥控执行确认 - 分闸]")
+				asdu.cmdRsp = &cmdRsp{}
+			} else if ie.Value == 0x01 {
+				_lg.Debugf("receive i frame: execute confirmation of single command - close [单点命令遥控执行确认 - 合闸]")
+				asdu.cmdRsp = &cmdRsp{}
+			} else {
+				_lg.Debugf("receive i frame: confirmation of single command [单点命令确认]")
+			}
+		case CotDeactCon:
+			if ie.Value == 0x00 {
+				_lg.Debugf("receive i frame: undo confirmation of single command - open [单点命令遥控撤销确认 - 分闸]")
+			} else if ie.Value == 0x01 {
+				_lg.Debugf("receive i frame: undo confirmation of single command - close [单点命令遥控撤销确认 - 合闸]")
+			} else {
+				_lg.Debugf("receive i frame: confirmation of single command [单点命令激活确认]")
+			}
+		case CotActTerm:
+			_lg.Debugf("receive i frame: termination of single command [单点命令激活终止]")
+			asdu.cmdRsp = &cmdRsp{
+				err: errSingleCmdTerm{},
+			}
+		}
+	case CDcNa1:
+		ie.getDCO()
+		switch asdu.cot {
+		case CotActCon:
+			if ie.Value == 0x81 {
+				_lg.Debugf("receive i frame: select confirmation of double command - open [双点命令遥控选择确认 - 分闸]")
+				asdu.cmdRsp = &cmdRsp{}
+			} else if ie.Value == 0x82 {
+				_lg.Debugf("receive i frame: select confirmation of double command - close [双点命令遥控选择确认 - 合闸]")
+				asdu.cmdRsp = &cmdRsp{}
+			} else if ie.Value == 0x01 {
+				_lg.Debugf("receive i frame: execute confirmation of double command - open [双点命令遥控执行确认 - 分闸]")
+				asdu.cmdRsp = &cmdRsp{}
+			} else if ie.Value == 0x02 {
+				_lg.Debugf("receive i frame: execute confirmation of double command - close [双点命令遥控执行确认 - 合闸]")
+				asdu.cmdRsp = &cmdRsp{}
+			} else {
+				_lg.Debugf("receive i frame: confirmation of double command [双点命令激活确认]")
+			}
+		case CotDeactCon:
+			if ie.Value == 0x01 {
+				_lg.Debugf("receive i frame: undo confirmation of double command - open [双点命令遥控撤销确认 - 分闸]")
+			} else if ie.Value == 0x02 {
+				_lg.Debugf("receive i frame: undo confirmation of double command - close [双点命令遥控撤销确认 - 合闸]")
+			} else {
+				_lg.Debugf("receive i frame: undo confirmation of double command [双点命令遥控取消激活确认]")
+			}
+		case CotActTerm:
+			_lg.Debugf("receive i frame: termination of double command [双点命令激活终止]")
+			asdu.cmdRsp = &cmdRsp{
+				err: errSingleCmdTerm{},
+			}
+		}
 	case CIcNa1:
 		switch asdu.cot {
 		case CotActCon:
@@ -448,7 +561,7 @@ const (
 	// Range: [-2^15, +2^15-1]
 	// https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-iec104.c#L1398
 	SVA
-	// IEEESTD754 indicates short floating point number.
+	// IEEE754STD indicates short floating point number.
 	// Length: 4 bytes
 	// TypeID: 13,14,36,50,112
 	// Format:
@@ -458,7 +571,7 @@ const (
 	// SVA contains a 16-bit value in the range [-32768, 32767] which represents a fixed decimal point number. However,
 	// the position of the decimal point is not transmitted by the value, but it is set in the system database.
 	// For example, a value of 39.5 amps may be transmitted as 395 where the resolution is fixed at 0.1 amp.
-	IEEESTD754
+	IEEE754STD
 	// BCR indicates binary counter reading.
 	// Length: 5 bytes
 	// TypeID: MItNa1
@@ -487,15 +600,54 @@ const (
 
 	// SCO indicates single command.
 	// Length: 1 byte
-	// TypeID: 45
+	// Format:
+	//   | <-                 8 bits                 -> |
+	//   ------------------------------------------------
+	//   | SE  |              QU            |  0  | ON  |
+	//
+	// Value Range:
+	// - Select  Open  : 0x80;
+	// - Select  Close : 0x81;
+	// - Execute Open  : 0x00;
+	// - Execute Close : 0x01;
+	// - Cancel  Open  : 0x00;
+	// - Cancel  Close : 0x01;
+	//
+	// TypeID: CScNa1
 	SCO
 	// DCO indicates double command.
 	// Length: 1 byte
-	// TypeID: 46
+	// Format:
+	//   | <-                 8 bits                 -> |
+	//   ------------------------------------------------
+	//   | SE  |              QU            |     ON    |
+	//
+	// Value Range:
+	// - Select  Open  : 0x81;
+	// - Select  Close : 0x82;
+	// - Execute Open  : 0x01;
+	// - Execute Close : 0x02;
+	// - Cancel  Open  : 0x01;
+	// - Cancel  Close : 0x02;
+	//
+	// TypeID: CDcNa1
 	DCO
 	// RCO indicates regulating step command.
 	// Length: 1 byte
-	// TypeID: 47
+	// Format:
+	//   | <-                 8 bits                 -> |
+	//   ------------------------------------------------
+	//   | SE  |              QU            |     UP    |
+	//
+	// Value Range:
+	// - Select  Open  : 0x81;
+	// - Select  Close : 0x82;
+	// - Execute Open  : 0x01;
+	// - Execute Close : 0x02;
+	// - Cancel  Open  : 0x01;
+	// - Cancel  Close : 0x02;
+	//
+	// TypeID: CRcNa1
 	RCO
 
 	// Time.

@@ -45,3 +45,6 @@ func serializeLittleEndianUint32(i uint32) []byte {
 	return bytes
 }
 
+type cmdRsp struct {
+	err error
+}
