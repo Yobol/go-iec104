@@ -20,9 +20,10 @@ func NewClient(address string, timeout time.Duration, tc *tls.Config, h DataHand
 		org: ORG(0),
 		coa: COA(0x0001),
 
-		sendChan: make(chan []byte, 1),
-		recvChan: make(chan *APDU),
-		dataChan: make(chan *APDU),
+		sendChan:   make(chan []byte, 1),
+		recvChan:   make(chan *APDU),
+		dataChan:   make(chan *APDU),
+		cmdRspChan: make(chan *cmdRsp, 0),
 
 		dataHandler: h,
 	}
@@ -40,6 +41,7 @@ type Client struct {
 	recvChan    chan *APDU  // receive apdu from server
 	dataChan    chan *APDU  // make Client owner to handle data received from server by themselves
 	dataHandler DataHandler // the handler of data from received from server
+	cmdRspChan  chan *cmdRsp
 
 	org      ORG    // originator address to identify controlling station when there are multiple controlling stations
 	coa      COA    // common address (or station address)
@@ -109,9 +111,7 @@ func (c *Client) readingFromSocket(ctx context.Context) {
 		default:
 			apdu, err := c.readFromSocket(ctx)
 			if err != nil {
-				_lg.Errorf("read from socket: %v", err)
-				time.Sleep(1 * time.Second)
-				break
+				panic(any(fmt.Errorf("read from socket: %v", err)))
 			}
 
 			switch apdu.frame.Type() {
@@ -212,6 +212,9 @@ func (c *Client) readApduBody(apduLen uint8) (*APDU, error) {
 
 	switch apdu.frame.Type() {
 	case FrameTypeI:
+		if apdu.ASDU.cmdRsp != nil {
+			c.cmdRspChan <- apdu.ASDU.cmdRsp
+		}
 		if apdu.ASDU.toBeHandled {
 			c.dataChan <- apdu
 		}
@@ -281,6 +284,133 @@ func (c *Client) SendCounterInterrogation() {
 		cot:    CotAct,
 		ios:    ios,
 	})
+}
+
+func (c *Client) SendSingleCommand(address IOA, close bool) error {
+	// select
+	ie := &InformationElement{
+		Format: []InformationElementType{SCO},
+	}
+	if close {
+		ie.Raw = []byte{0x81}
+	} else {
+		ie.Raw = []byte{0x80}
+	}
+	ios := []*InformationObject{
+		{
+			ioa: address,
+			ies: []*InformationElement{ie},
+		},
+	}
+	c.SendIFrame(&ASDU{
+		typeID: CScNa1,
+		sq:     false,
+		nObjs:  NOO(len(ios)),
+		t:      false,
+		cot:    CotAct,
+		ios:    ios,
+	})
+	select {
+	case rsp := <- c.cmdRspChan:
+		if rsp.err != nil {
+			return rsp.err
+		}
+	}
+
+	// execute
+	ie = &InformationElement{
+		Format: []InformationElementType{SCO},
+	}
+	if close {
+		ie.Raw = []byte{0x01}
+	} else {
+		ie.Raw = []byte{0x00}
+	}
+	ios = []*InformationObject{
+		{
+			ioa: address,
+			ies: []*InformationElement{ie},
+		},
+	}
+	c.SendIFrame(&ASDU{
+		typeID: CScNa1,
+		sq:     false,
+		nObjs:  NOO(len(ios)),
+		t:      false,
+		cot:    CotAct,
+		ios:    ios,
+	})
+	select {
+	case rsp := <- c.cmdRspChan:
+		if rsp.err != nil {
+			return rsp.err
+		}
+	}
+	return nil
+}
+
+func (c *Client) SendDoubleCommand(address IOA, close bool) error {
+	ie := &InformationElement{
+		Format: []InformationElementType{DCO},
+	}
+	if close {
+		ie.Raw = []byte{0x82}
+	} else {
+		ie.Raw = []byte{0x81}
+	}
+	ios := []*InformationObject{
+		{
+			ioa: address,
+			ies: []*InformationElement{ie},
+		},
+	}
+	c.SendIFrame(&ASDU{
+		typeID: CDcNa1,
+		sq:     false,
+		nObjs:  NOO(len(ios)),
+		t:      false,
+		cot:    CotAct,
+		ios:    ios,
+	})
+
+	select {
+	case rsp := <- c.cmdRspChan:
+		if rsp.err != nil {
+			return rsp.err
+		}
+	}
+
+	// execute
+	ie = &InformationElement{
+		Format: []InformationElementType{DCO},
+	}
+	if close {
+		ie.Raw = []byte{0x02}
+	} else {
+		ie.Raw = []byte{0x01}
+	}
+	ios = []*InformationObject{
+		{
+			ioa: address,
+			ies: []*InformationElement{ie},
+		},
+	}
+	c.SendIFrame(&ASDU{
+		typeID: CDcNa1,
+		sq:     false,
+		nObjs:  NOO(len(ios)),
+		t:      false,
+		cot:    CotAct,
+		ios:    ios,
+	})
+
+	select {
+	case rsp := <- c.cmdRspChan:
+		if rsp.err != nil {
+			return rsp.err
+		}
+	}
+	return nil
 }
 
 func (c *Client) SendIFrame(asdu *ASDU) {
