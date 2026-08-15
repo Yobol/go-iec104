@@ -1,3 +1,5 @@
+
+
 # go-iec104
 
 Implementation of [IEC 60870-5-104 Protocol](https://www.fit.vut.cz/research/publication-file/11570/TR-IEC104.pdf) over
@@ -88,6 +90,8 @@ ASDU
 - Acquisition of transmission delay - needed for time correction
 
 ### Transactional view on IEC 104 communication
+
+> Example client and server implementations demonstrating basic usage are available in the `examples/` directory.
 
 ## Analysis Samples
 
